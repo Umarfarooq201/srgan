@@ -44,3 +44,62 @@ class ConvBlock(nn.Module):
             out = self.block1(x)
             out = self.block2(out)
             return out + x
+
+
+class generator(nn.Module):
+    def __init__(self):
+        super().__init__()
+        blocks = []
+        for i in range(16):
+            blocks.append(residual_block())
+
+        self.pre_residual = nn.Sequential(nn.Conv2d(in_channels=3, out_channels=64,
+                                                    kernel_size=9, padding=1),
+                                          nn.ReLU())
+        self.residual = nn.Sequential(blocks)
+        self.post_residual = nn.Sequential(nn.Conv2d(in_channels=64, out_channels=64,
+                                                     kernel_size=3, padding=1),
+                                           nn.BatchNorm2d(64))
+        self.upscale = nn.Sequential(upscale(),
+                                     upscale(),
+                                     nn.Conv2d(in_channels=64, out_channels=3,
+                                               kernel_size=9, padding=1))
+
+    def forward(self, x):
+        pre_residual_out = self.pre_residual(x)
+        out = self.residual(pre_residual_out)
+        post_residual_out = self.post_residual(out)
+        out = torch.add(pre_residual_out, post_residual_out)
+        out = upscale(out)
+        return out
+
+
+class residual_block(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.residual = nn.Sequential(nn.Conv2d(in_channels=64, out_channels=64,
+                                                kernel_size=3, padding=1),
+                                      nn.BatchNorm2d(64),
+                                      nn.ReLU(),
+                                      nn.Conv2d(in_channels=64, out_channels=64,
+                                                kernel_size=3, padding=1),
+                                      nn.BatchNorm2d(64))
+
+    def forward(self, x):
+        out = self.residual(x)
+        out = torch.add(out, x)
+        return out
+
+
+class upscale(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.upscale = nn.Sequential(nn.Conv2d(in_channels=64, out_channels=64*2,
+                                               kernel_size=3, padding=1),
+                                     nn.PixelShuffle(2),
+                                     nn.PReLU())
+
+    def forward(self, x):
+        out = self.upscale(x)
+        return out
+
